@@ -12,7 +12,7 @@
  */
 
 const 
-    ES_FILE_CONCURRENCY=1    /* how many concurrent S3 cloudtrail files to do */
+    ES_FILE_CONCURRENCY=1   /* how many concurrent S3 cloudtrail files to do */
     ; 
 
 var AWS = require('aws-sdk')
@@ -32,12 +32,12 @@ var AWS = require('aws-sdk')
 program
     .version('0.0.1')
     .option('-b, --bucket <sourcebucket>', 'Bucket with cloudtrail logs', String, '')
-    .option('-r, --region <bucket region>', 'Default region: us-west-2', String, 'us-west-2')
-    .option('-p, --prefix <prefix>', 'prefix where to start listing objects')
+    .option('-r, --region <bucket region>', 'Default region: eu-west-1', String, 'eu-west-1')
+    .option('-p, --prefix <prefix>', 'prefix where to start listing objects', String, '')
 
-    .option('-e, --elasticsearch <url>', 'ES base, ie: https://host:port', String, '')
-    .option('--work-index <name>', 'ES index to record imported files, def: cloudtrail-imported', String, 'cloudtrail-import-log')
-    .option('--cloudtrail-index <name>', 'ES index to put cloudtrail events, def: cloudtrail', String, 'cloudtrail')
+    .option('-e, --elasticsearch <url>', 'ES base, ie: https://host:port', String, 'http://localhost:9200')
+    .option('--work-index <name>', 'ES index to record imported files, def: cloudtrail-imported', String, '')
+    .option('--cloudtrail-index <name>', 'ES index to put cloudtrail events, def: cloudtrail', String, '')
     .parse(process.argv);
 
 /*
@@ -57,7 +57,7 @@ if (program.elasticsearch) {
  */
 AWS.config.update({
     accessKeyId : process.env.AWS_ACCESS_KEY,
-    secretAccessKey : process.env.AWS_SECRET_KEY
+    secretAccessKey : process.env.AWS_SECRET_KEY	
 });
 
 async.auto({
@@ -224,11 +224,16 @@ function processItemWorker(task, processItemWorkerCB) {
         }
 
         if (res && res.exists == true) {
-            d.info("skip %s, already exists", ETag);
+            d.info("skip %s, %s, already exists", ETag, task.Key);
             processItemWorkerCB();
             return;
         }
-
+		// For ElasticSearch v1.4.3
+		if (res && res.found == true) {
+			d.info("skip %s, %s, already exists", ETag, task.Key);
+			processItemWorkerCB();
+			return;
+		}
         d.info("Processing: %s", task.Key);
 
         /* 
@@ -242,45 +247,53 @@ function processItemWorker(task, processItemWorkerCB) {
         stream.on('data', function(data) { jsonSrc += data.toString(); });
 
         stream.on('end', function() {
-            var o = JSON.parse(jsonSrc); 
+			// Sometimes objects are not fully streamed before this starts.
+			// Try-catch, at least it will be processed in the future run.
+			try {
+				var o = JSON.parse(jsonSrc); 
 
-            // ref: https://github.com/ramv/node-elastical/blob/master/lib/client.js#L129
-            var _bulk = [];
-            for (var i=0,l=o.Records.length; i<l; i++) {
-                _bulk.push({
-                    index: {
-                        index: task.cloudtrailIndexName
-                        , type: "event"
-                        , data: o.Records[i]
-                    }
-                });
-            }
+				// ref: https://github.com/ramv/node-elastical/blob/master/lib/client.js#L129
+				var _bulk = [];
+				for (var i=0,l=o.Records.length; i<l; i++) {
+					_bulk.push({
+						index: {
+							index: task.cloudtrailIndexName
+							, type: "event"
+							, data: o.Records[i]
+						}
+					});
+				}
 
-            var doc = {
-                _id : ETag
-                , key : task.Key
-                , timestamp: moment().format()
-            };
+				var doc = {
+					_id : ETag
+					, key : task.Key
+					, timestamp: moment().format()
+				};
 
-            // will mark the s3 object as done
-            _bulk.push({
-                index: {
-                    index: task.workIndexName
-                    , type: "s3obj"
-                    , data: doc
-                    , id: ETag
-                }
-            });
+				// will mark the s3 object as done
+				_bulk.push({
+					index: {
+						index: task.workIndexName
+						, type: "s3obj"
+						, data: doc
+						, id: ETag
+					}
+				});
 
-            ES.bulk(_bulk, function(err, res) {
-                if (err) {
-                    d.info("Error bulk index: %s", err);
-                } else {
-                    d.info("Bulk indexed %d items", _bulk.length);
-                }
+				ES.bulk(_bulk, function(err, res) {
+					if (err) {
+						d.info("Error bulk index: %s", err);
+					} else {
+						d.info("Bulk indexed %d items", _bulk.length);
+					}
 
-                processItemWorkerCB();
-            });
+					processItemWorkerCB();
+				});
+			}
+			catch(err) {
+				d.error(err);
+				processItemWorkerCB();
+			}
         });
     });
     
