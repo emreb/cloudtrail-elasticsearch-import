@@ -36,7 +36,7 @@ program
     .option('-p, --prefix <prefix>', 'prefix where to start listing objects', String, '')
 
     .option('-e, --elasticsearch <url>', 'ES base, ie: https://host:port', String, '')
-    .option('--work-index <name>', 'ES index to record imported files, def: cloudtrail-imported', String, 'cloudtrail-imported')
+    .option('--work-index <name>', 'ES index to record imported files, def: cloudtrail-imported', String, 'cloudtrail-import-log')
     .option('--cloudtrail-index <name>', 'ES index to put cloudtrail events, def: cloudtrail', String, 'cloudtrail')
     .parse(process.argv);
 
@@ -57,7 +57,7 @@ if (program.elasticsearch) {
  */
 AWS.config.update({
     accessKeyId : process.env.AWS_ACCESS_KEY,
-    secretAccessKey : process.env.AWS_SECRET_KEY	
+    secretAccessKey : process.env.AWS_SECRET_KEY
 });
 
 async.auto({
