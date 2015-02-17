@@ -32,12 +32,12 @@ var AWS = require('aws-sdk')
 program
     .version('0.0.1')
     .option('-b, --bucket <sourcebucket>', 'Bucket with cloudtrail logs', String, '')
-    .option('-r, --region <bucket region>', 'Default region: eu-west-1', String, 'eu-west-1')
+    .option('-r, --region <bucket region>', 'Default region: us-west-2', String, 'us-west-2')
     .option('-p, --prefix <prefix>', 'prefix where to start listing objects', String, '')
 
-    .option('-e, --elasticsearch <url>', 'ES base, ie: https://host:port', String, 'http://localhost:9200')
-    .option('--work-index <name>', 'ES index to record imported files, def: cloudtrail-imported', String, '')
-    .option('--cloudtrail-index <name>', 'ES index to put cloudtrail events, def: cloudtrail', String, '')
+    .option('-e, --elasticsearch <url>', 'ES base, ie: https://host:port', String, '')
+    .option('--work-index <name>', 'ES index to record imported files, def: cloudtrail-imported', String, 'cloudtrail-imported')
+    .option('--cloudtrail-index <name>', 'ES index to put cloudtrail events, def: cloudtrail', String, 'cloudtrail')
     .parse(process.argv);
 
 /*
