@@ -228,12 +228,14 @@ function processItemWorker(task, processItemWorkerCB) {
             processItemWorkerCB();
             return;
         }
+
 		// For ElasticSearch v1.4.3
 		if (res && res.found == true) {
 			d.info("skip %s, %s, already exists", ETag, task.Key);
 			processItemWorkerCB();
 			return;
 		}
+
         d.info("Processing: %s", task.Key);
 
         /* 
